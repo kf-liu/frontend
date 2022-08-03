@@ -1,4 +1,31 @@
-[TOC]
+- [`ahooks/useRequest` 源码解读](#ahooksuserequest-源码解读)
+  - [文件结构](#文件结构)
+  - [收口处 · `useRequest.ts`](#收口处--userequestts)
+    - [源码(`useRequest.ts`)](#源码userequestts)
+    - [整体解读(`useRequest.ts`)](#整体解读userequestts)
+  - [出入参与实例化 · `useRequestImplement.ts`](#出入参与实例化--userequestimplementts)
+    - [源码(`useRequestImplement.ts`)](#源码userequestimplementts)
+    - [核心实例 · `Fetch`实例`fetchInstance`](#核心实例--fetch实例fetchinstance)
+    - [入参配置](#入参配置)
+    - [`fetchInstance`的生命周期管理](#fetchinstance的生命周期管理)
+    - [出参处理](#出参处理)
+  - [幕后大佬 `Fetch.ts`](#幕后大佬-fetchts)
+    - [源码(`Fetch.ts`)](#源码fetchts)
+    - [整体解读(`Fetch.ts`)](#整体解读fetchts)
+    - [构造 · `constructor`](#构造--constructor)
+    - [插件处理 · `runPluginHandler`](#插件处理--runpluginhandler)
+    - [核心方法 · `run` & `runAsync`](#核心方法--run--runasync)
+      - [step1, 插件`onBefore`, 判断是否立即停止](#step1-插件onbefore-判断是否立即停止)
+      - [step2, 判断是否立即返回](#step2-判断是否立即返回)
+      - [step3, 用户`onBefore`](#step3-用户onbefore)
+      - [step4, 真正的请求——`try{}catch{}`](#step4-真正的请求trycatch)
+        - [`try`的部分](#try的部分)
+        - [`catch`的部分](#catch的部分)
+      - [关于`runAsync`, 小叨几句](#关于runasync-小叨几句)
+    - [取消 · `cancel`](#取消--cancel)
+    - [更新 · `refresh` & `refreshAsync`](#更新--refresh--refreshasync)
+    - [`mutate`](#mutate)
+
 # `ahooks/useRequest` 源码解读
 `useRequest`作为`ahooks`中最重要的成员之一, 在实际开发中的使用频率还是很高的, 功能也很全面, 值得一读.
 
@@ -648,7 +675,7 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
       throw error; 
 ```
 最后抛出`error`(暗爽)!
-#### 关于`runAsync`, 小叨
+#### 关于`runAsync`, 小叨几句
 `runAsync`的句子比较长, 但总体而言内容不多, 无非几步: `onBefore`, 检查是否停止, 检查是否立即返回, `try`请求…… 请求完, 检查请求是否过期, `onSuccess / onError`, `onFinally`. 
 
 其中有四个`on`开头的事件, 而每到相应事件阶段, 都会分别调用用户从`useRequest`的`options`中传入的事件方法 和 所有插件中的事件方法. 从中不难注意到, 请求前的`onBefore`事件时是先遍历调用插件中的事件后调用用户传入的事件, 请求后的三个事件反之. 个人对此其实不太了解, 粗浅的理解了一下, 认为用户的事件在此总是比插件距离请求本身更近, 即用户具有最真实材料(即请求本身)的最终决定和第一个使用的权利, 插件的权限次之. 将事件跨度再拉大一些, 其实也是让用户的事件方法距离`useRequest`的出入参更远——试想, 刚拿到入参就做`onBefore`处理, 为什么不先处理了再给入参呢? 
