@@ -1,40 +1,8 @@
-<!-- vscode-markdown-toc -->
-* 1. [文件结构](#)
-* 2. [收口处 · `useRequest.ts`](#useRequest.ts)
-	* 2.1. [📖 源码](#-1)
-	* 2.2. [🌍 整体解读](#-1)
-* 3. [出入参与实例化 · `useRequestImplement.ts`](#useRequestImplement.ts)
-	* 3.1. [📖 源码](#-1)
-	* 3.2. [✨ 核心实例 · `Fetch`实例`fetchInstance`](#FetchfetchInstance)
-	* 3.3. [入参配置](#-1)
-	* 3.4. [`fetchInstance`的生命周期管理](#fetchInstance)
-	* 3.5. [出参处理](#-1)
-* 4. [幕后大佬 `Fetch.ts`](#Fetch.ts)
-	* 4.1. [📖 源码](#-1)
-	* 4.2. [🌍 整体解读](#-1)
-	* 4.3. [构造 · `constructor`](#constructor)
-	* 4.4. [插件处理 · `runPluginHandler`](#runPluginHandler)
-	* 4.5. [✨ 核心方法 · `run` & `runAsync`](#runrunAsync)
-		* 4.5.1. [📍第一部分, 调用插件`onBefore`, 判断是否立即停止🤚](#onBefore)
-		* 4.5.2. [📍第二部分, 判断是否立即返回🦶](#-1)
-		* 4.5.3. [📍第三部分, 运行`useRequest`中用户入参`options`中传入的`onBefore`方法.](#useRequestoptionsonBefore.)
-		* 4.5.4. [📍第四部分,  真正的请求——`try{}catch{} `](#trycatch)
-		* 4.5.5. [🌍 关于`runAsync`, 小叨几句](#runAsync)
-	* 4.6. [取消 · `cancel`](#cancel)
-	* 4.7. [更新 · `refresh` & `refreshAsync`](#refreshrefreshAsync)
-	* 4.8. [`mutate`](#mutate)
-
-<!-- vscode-markdown-toc-config
-	numbering=true
-	autoSave=true
-	/vscode-markdown-toc-config -->
-<!-- /vscode-markdown-toc -->
+[TOC]
 # `ahooks/useRequest` 源码解读
 `useRequest`作为`ahooks`中最重要的成员之一, 在实际开发中的使用频率还是很高的, 功能也很全面, 值得一读.
 
-
-
-##  1. <a name=''></a>文件结构
+## 文件结构
 `useRequest`核心代码位于项目`packages/hooks/src/useRequest/src/`, 其下文件目录:
 ```
 src
@@ -62,9 +30,9 @@ src
     └── subscribeReVisible.ts
 ```
 
-##  2. <a name='useRequest.ts'></a>收口处 · `useRequest.ts`
+## 收口处 · `useRequest.ts`
 自顶向下的看, 自然是从`useRequest.ts入`手, 但显然, 这只是一个隐藏了核心逻辑的规范化收口文件 ⬇️
-###  2.1. <a name='-1'></a>📖 源码
+### 源码(`useRequest.ts`)
 ```
 import useAutoRunPlugin from './plugins/useAutoRunPlugin';
 import useCachePlugin from './plugins/useCachePlugin';
@@ -98,7 +66,7 @@ function useRequest<TData, TParams extends any[]>(
 export default useRequest;
 ```
 
-###  2.2. <a name='-1'></a>🌍 整体解读
+### 整体解读(`useRequest.ts`)
 抛开`import`、`type`, 这三十行代码实际上只有一句话:
 ```
 function useRequest(service, options, plugins) {
@@ -112,9 +80,9 @@ export default useRequest;
 ```
 可见`useRequest`方法实际就只是返回了它隔壁`useRequestImplement`, 同时多带了一些默认插件. 插件具体功能暂且按下不表, 还是先看看更重要的`useRequestImplement.ts`. 
 
-##  3. <a name='useRequestImplement.ts'></a>出入参与实例化 · `useRequestImplement.ts`
+## 出入参与实例化 · `useRequestImplement.ts`
 先上源码.
-###  3.1. <a name='-1'></a>📖 源码
+### 源码(`useRequestImplement.ts`)
 ```
 import useCreation from '../../useCreation';
 import useLatest from '../../useLatest';
@@ -185,7 +153,7 @@ function useRequestImplement<TData, TParams extends any[]>(
 
 export default useRequestImplement;
 ```
-###  3.2. <a name='FetchfetchInstance'></a>✨ 核心实例 · `Fetch`实例`fetchInstance`
+### 核心实例 · `Fetch`实例`fetchInstance`
 可见, `useRequestImplement`中的功能为:
 使用`useCreation`实例化一个`Fetch`类: `fetchInstance`, 并对出入参配置及`Fetch`实例生命周期相关逻辑进行简单处理. 由此已可以推知核心逻辑应当在`Fetch.ts`中.
 实例化代码:
@@ -202,26 +170,27 @@ export default useRequestImplement;
   }, []);
 ```
 而其他代码都围绕这一实例展开:
-###  3.3. <a name='-1'></a>入参配置
+### 入参配置
 入参, 配置实例. `useRequestImplement`组件共三项入参: `service`, `options`, `plugins`. 
 
-- 将组件入参中的`service`装进`useLatest`以总是调用最新值, 并将返回的`serviceRef`作为入参在实例化`Fetch`时传入
+- 将组件入参中的`service`装进`useLatest`[^useLatest]以总是调用最新值, 并将返回的`serviceRef`作为入参在实例化`Fetch`时传入
 - 实例化后, 配置`fetchInstance`的`options`为组件入参中的`options`, 同时默认设置`manul`为`false`
 - 实例化后, 配置`fetchInstance`的`pluginImpls`为组件入参中的`plugins`, 并让所有插件跑起来
-###  3.4. <a name='fetchInstance'></a>`fetchInstance`的生命周期管理
+[^useLatest]: useLatest: ahooks 中与 useRequest 同一目录层级的 hook, 封装了 useRef. 返回当前最新值的 Hook, 可以避免闭包问题. https://ahooks.js.org/zh-CN/hooks/use-latest
+### `fetchInstance`的生命周期管理
 实例化后, 生命周期管理
 - 在`useMount`中, 如果`manul = false`即非手动调用, 则在此调用`fetchInstance.run(...params)`唤醒`fetachInstance`, 发起请求
 - 在`useUnmount`中调用`fetchInstance.cancel()`, 停止可能有未完成的请求
-###  3.5. <a name='-1'></a>出参处理
+### 出参处理
 出参. 所有出参都从`FetchInstance`中返回, 具体可以分为返回值和方法.
 - 返回值: 如`loading`, `data`, `error`, `params`. 直接从`fetchInstance.state`中获取并返回.
-- 六个方法: 有`cancel`, `refresh`, `refreshAsync`, `run`, `runAsync`, `mutate`. 则为`fn: useMemoizedFn(fetchInstance.fn.bind(fetchInstance))`, 使用`class`的写法绑定后通过`useMemoizedFn`返回以确保函数地址不变. 
+- 六个方法: 有`cancel`, `refresh`, `refreshAsync`, `run`, `runAsync`, `mutate`. 则为`fn: useMemoizedFn(fetchInstance.fn.bind(fetchInstance))`, 使用`class`的写法绑定后通过`useMemoizedFn`[^useMemoizedFn]返回以确保函数地址不变. 
 
 至此, `useRequestImplement.ts` 的主要内容就读完了, 接下来进入真正的拉取请求环节——`Fetch`.
-
-##  4. <a name='Fetch.ts'></a>幕后大佬 `Fetch.ts`
+[^useMemoizedFn]: useMemoizedFn: ahooks 中与 useRequest 同一目录层级的 hook, 基于 useMemo 和 useRef 进行封装. 持久化 function 的 Hook, 理论上, 可以使用 useMemoizedFn 完全代替 useCallback. 可以省略第二个参数 deps, 同时保证函数地址永远不会变化. https://ahooks.js.org/zh-CN/hooks/use-memoized-fn
+## 幕后大佬 `Fetch.ts`
 `useRequest.ts`, `useRequestImplement.ts`, `Fetch.ts`三个文件分别有30、70和170行…… 因此…… 不想看的就往下多滑两下, 后面还会逐段粘贴.
-###  4.1. <a name='-1'></a>📖 源码
+### 源码(`Fetch.ts`)
 ```
 /* eslint-disable @typescript-eslint/no-parameter-properties */
 import { isFunction } from '../../utils';
@@ -396,7 +365,7 @@ export default class Fetch<TData, TParams extends any[]> {
   }
 }
 ```
-###  4.2. <a name='-1'></a>🌍 整体解读
+### 整体解读(`Fetch.ts`)
 首先是一个好消息:
 ```
 import { isFunction } from '../../utils';
@@ -415,7 +384,7 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
 ![](https://pic2.zhimg.com/80/v2-2729bc93dafb3b97536c56d6933763fd_1440w.jpg)
 
 接来下, 就从`constructor`开始阅读. 
-###  4.3. <a name='constructor'></a>构造 · `constructor`
+### 构造 · `constructor`
 ```
   constructor(
     public serviceRef: MutableRefObject<Service<TData, TParams>>, // 第一个
@@ -446,7 +415,7 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
 整体来看, 四个入参都被直接作为了`public`成员, 因而如`serviceRef`, `options`中`manual`以外的值, 虽然在`constructor`中没有做处理或保存, 但其实已经成为了`Fetch`的公共成员, 可以在其他成员函数中通过`this`直接调用. 
 
 其实真正做的处理, 只有一个`loading`状态根据是否手动参数`manual`更新. 其他`initState`都是插件的初始化参数. 
-###  4.4. <a name='runPluginHandler'></a>插件处理 · `runPluginHandler`
+### 插件处理 · `runPluginHandler`
 ```
   runPluginHandler(event: keyof PluginReturn<TData, TParams>, ...rest: any[]) {
     // @ts-ignore
@@ -455,7 +424,7 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
   }
 ```
 这一方法将遍历`pluginImpls`所有插件, 执行其`event`指定的事件方法, 遍历后合并返回所有插件的返回.
-###  4.5. <a name='runrunAsync'></a>✨ 核心方法 · `run` & `runAsync`
+### 核心方法 · `run` & `runAsync`
 虽然`run`看起来也很核心, 但实际上不论是`run`还是`runAsync`, 实际都是调用`runAsync`, 看看`run`的源码就知道了 ⬇️
 ```
 // run
@@ -556,7 +525,7 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
   }
 ```
 有点长, 需要分几个部分来读.
-####  4.5.1. <a name='onBefore'></a>📍第一部分, 调用插件`onBefore`, 判断是否立即停止🤚
+#### step1, 插件`onBefore`, 判断是否立即停止
 ```
     this.count += 1; // 设置计数器 + 1
     const currentCount = this.count; // 设置当前是几号请求
@@ -576,7 +545,7 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
 - 第二步, 运行插件的`onBefore`方法, 更新方法中的状态`state`并捞出`stopNow`, `returnNow`备用.
 - 判断是否`stopNow`, 如果是, 那么就返回空对象, 请求结束了.
 
-####  4.5.2. <a name='-1'></a>📍第二部分, 判断是否立即返回🦶
+#### step2, 判断是否立即返回
 ```
     this.setState({
       loading: true,
@@ -592,13 +561,14 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
 - 更新`Fetch`类的状态`state`, 其中`loading: true`, 请求开始, 同时将请求参数放入类状态中. 
 - 判断上一部分捞回的`returnNow`, 如果是, 那么就立即返回方法中的状态中的`data`, 请求结束了. 
 
-####  4.5.3. <a name='useRequestoptionsonBefore.'></a>📍第三部分, 运行`useRequest`中用户入参`options`中传入的`onBefore`方法.
+#### step3, 用户`onBefore`
+运行`useRequest`中用户入参`options`中传入的`onBefore`方法.
 ```
     this.options.onBefore?.(params);
 ```
-####  4.5.4. <a name='trycatch'></a>📍第四部分,  真正的请求——`try{}catch{} `
+#### step4, 真正的请求——`try{}catch{}`
 注意,  这一部分所有内容都被包在`try{}catch{}`中. 
-##### 📍📍`try`的部分 
+##### `try`的部分 
 此时开始进入`onRequest`状态了, 意味着要调用所有插件中的`onRequest`方法更新服务, 然后发起请求 ⬇️
 ```
       // replace service
@@ -647,7 +617,7 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
 按`options.onSuccess`, 所有插件的`onSuccess`,  `options`. `onFinally`, 所有插件的`onFinally`依次调用. 当然, 如果当前请求已经过期, 那么最后一项插件的`onFinally`事件则不会再调用.
 
 至此, 就是一切顺利, 返回`res`啦. 
-##### 📍📍`catch`的部分
+##### `catch`的部分
 既然出问题了…… 那么先来判断一把请求是不是已经过期了. be like: pre已经结束了, ppt就算炸了也没有关系.
 ```
       if (currentCount !== this.count) {
@@ -678,13 +648,13 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
       throw error; 
 ```
 最后抛出`error`(暗爽)!
-####  4.5.5. <a name='runAsync'></a>🌍 关于`runAsync`, 小叨几句
+#### 关于`runAsync`, 小叨
 `runAsync`的句子比较长, 但总体而言内容不多, 无非几步: `onBefore`, 检查是否停止, 检查是否立即返回, `try`请求…… 请求完, 检查请求是否过期, `onSuccess / onError`, `onFinally`. 
 
 其中有四个`on`开头的事件, 而每到相应事件阶段, 都会分别调用用户从`useRequest`的`options`中传入的事件方法 和 所有插件中的事件方法. 从中不难注意到, 请求前的`onBefore`事件时是先遍历调用插件中的事件后调用用户传入的事件, 请求后的三个事件反之. 个人对此其实不太了解, 粗浅的理解了一下, 认为用户的事件在此总是比插件距离请求本身更近, 即用户具有最真实材料(即请求本身)的最终决定和第一个使用的权利, 插件的权限次之. 将事件跨度再拉大一些, 其实也是让用户的事件方法距离`useRequest`的出入参更远——试想, 刚拿到入参就做`onBefore`处理, 为什么不先处理了再给入参呢? 
 
 好了, 核心请求逻辑都在上面. 接下来看看返回给用户的六个方法. 当然, 虽说有六个, 实则接下来要聊的只有四个, 因为其中`run`和`runAsync`已经读过了.
-###  4.6. <a name='cancel'></a>取消 · `cancel`
+### 取消 · `cancel`
 ```
   cancel() {
     this.count += 1;
@@ -696,7 +666,7 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
   }
 ```
 这里逻辑很简单, `计数器 + 1`, `loading: false`就强制将请求置为停止状态了, 当真正请求回来时对比计数器, 就会发现已经过期了~
-###  4.7. <a name='refreshrefreshAsync'></a>更新 · `refresh` & `refreshAsync`
+### 更新 · `refresh` & `refreshAsync`
 ```
   refresh() {
     // @ts-ignore
@@ -709,7 +679,7 @@ import type { FetchState, Options, PluginReturn, Service, Subscribe } from './ty
   } 
 ```
 其实也就是重新`run`啦.
-###  4.8. <a name='mutate'></a>`mutate`
+### `mutate`
 ```
   mutate(data?: TData | ((oldData?: TData) => TData | undefined)) {
     let targetData: TData | undefined;
