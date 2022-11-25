@@ -3,6 +3,7 @@
 
 ## Open Source Projects
 - [regexlearn](/open_source_projects/regexlearn.md)
+- [jsoncrack](/open_source_projects/jsoncrack.md)
 
 ## `hooks`:
 - [`ahooks/useRequest`源码解读](/ahooks/useRequest/index.md)
