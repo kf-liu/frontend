@@ -1,5 +1,8 @@
 # frontend
-前端开源软件、工具与技术栈相关源码学习。
+开源软件、工具与技术栈相关源码学习，前端为主。
+
+## Books
+- [The-Art-of-Linear-Algebra](/books/The-Art-of-Linear-Algebra.md)
 
 ## Open Source Projects
 - [regexlearn](/open_source_projects/regexlearn.md)
